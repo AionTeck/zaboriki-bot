@@ -1,6 +1,7 @@
 import requests
 import logging
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
+import aiohttp
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from config import config
 
@@ -73,3 +74,85 @@ async def show_main_menu(update: Update, context: CallbackContext):
         "Чтобы продолжить работу, необходимо выбрать дальнейшее действие",
         reply_markup=reply_markup
     )
+
+
+async def handle_main_menu_selection(update: Update, context: CallbackContext):
+    if update.callback_query:
+        user_choice = update.callback_query.data
+        await update.callback_query.answer()
+    else:
+        user_choice = update.message.text
+
+    match user_choice:
+        case "Главное меню":
+            await show_main_menu(update, context)
+        case "Расчет":
+            await fence_calculation(update, context)
+        case "О компании":
+            await about_company(update, context)
+        case "Заявка":
+            await request_contact(update, context)
+        case "Цены":
+            await get_prices(update, context)
+        case _:
+            await update.message.reply_text("Вы выбрали неизвестную опцию.")
+
+
+async def handle_fence_selection(update: Update, context: CallbackContext, type_id: str):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"{config.BASE_API_URL}fences?typeId={type_id}") as response:
+            if response.status == 200:
+                data = await response.json()
+                fences = data.get("data", [])
+
+                keyboard = [
+                    [InlineKeyboardButton(fence["name"], callback_data=str(fence["id"]))] for fence in fences
+                ]
+
+                keyboard.append([InlineKeyboardButton("Назад")])
+
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                await update.callback_query.message.edit_text(
+                    "Выберите забор из списка:",
+                    reply_markup=reply_markup
+                )
+            else:
+                await update.callback_query.message.edit_text("Произошла ошибка при получении забора.")
+
+
+async def fence_calculation(update: Update, context: CallbackContext):
+    await update.message.reply_text("Давайте посмотрим что у нас есть...")
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"{config.BASE_API_URL}fences/types") as response:
+            if response.status == 200:
+                data = await response.json()
+                types = data.get("data")
+
+                keyboard = [
+                    [InlineKeyboardButton(type_["name"], callback_data=str(type_["id"]))] for type_ in types
+                ]
+                keyboard.append([InlineKeyboardButton("Главное меню", callback_data="main_menu")])
+
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                await update.message.reply_text(
+                    "Выберите необходимый тип забора",
+                    reply_markup=reply_markup
+                )
+            else:
+                logger.error("Unexpected error. Fence types not found.")
+                await update.message.reply_text("Произошла ошибка при получении данных.")
+
+
+async def about_company(update: Update, context: CallbackContext):
+    await update.message.reply_text("About")
+
+
+async def request_contact(update: Update, context: CallbackContext):
+    await update.message.reply_text("Request contact")
+
+
+async def get_prices(update: Update, context: CallbackContext):
+    await update.message.reply_text("Get prices")
