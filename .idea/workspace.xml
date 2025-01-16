@@ -4,9 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3d0e5c42-54fb-4fbd-8298-4eb1568a07a4" name="Changes" comment="FEAT Добавление функционала главного меню&#10;&#10;Добавление &#10; - config.py Файл конфигурации проекта&#10; - handlers.py Хендлеры для команд&#10; - logging_config.py Конфиг для логирования&#10; - main.py Основной исполяемый файл проекта">
+    <list default="true" id="3d0e5c42-54fb-4fbd-8298-4eb1568a07a4" name="Changes" comment="FEAT Добавление функционала главного меню&#10;&#10;Обновление handler'ов.">
+      <change afterPath="$PROJECT_DIR$/bot/handlers/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/bot/handlers/contact.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/bot/handlers/error.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/bot/handlers/fence_conversation.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/bot/handlers/menu.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/bot/handlers/start.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bot/handlers.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot/handlers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bot/handlers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/bot/logging_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot/logging_config.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bot/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -29,6 +36,18 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "AionTeck"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/AionTeck/zaboriki-bot.git",
+    "accountId": "7e7b2f01-47e4-4c80-a386-2c78f6e9daf5"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 1
 }</component>
@@ -77,7 +96,7 @@
       <workItem from="1736924845966" duration="480000" />
       <workItem from="1736925407102" duration="5767000" />
       <workItem from="1736969794973" duration="2644000" />
-      <workItem from="1737000694063" duration="5045000" />
+      <workItem from="1737000694063" duration="10035000" />
     </task>
     <task id="LOCAL-00001" summary="Init">
       <option name="closed" value="true" />
@@ -95,7 +114,15 @@
       <option name="project" value="LOCAL" />
       <updated>1736934697275</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="FEAT Добавление функционала главного меню&#10;&#10;Обновление handler'ов.">
+      <option name="closed" value="true" />
+      <created>1737011208531</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1737011208531</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -127,10 +154,11 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Init" />
     <MESSAGE value="FEAT Добавление функционала главного меню&#10;&#10;Добавление &#10; - config.py Файл конфигурации проекта&#10; - handlers.py Хендлеры для команд&#10; - logging_config.py Конфиг для логирования&#10; - main.py Основной исполяемый файл проекта" />
-    <option name="LAST_COMMIT_MESSAGE" value="FEAT Добавление функционала главного меню&#10;&#10;Добавление &#10; - config.py Файл конфигурации проекта&#10; - handlers.py Хендлеры для команд&#10; - logging_config.py Конфиг для логирования&#10; - main.py Основной исполяемый файл проекта" />
+    <MESSAGE value="FEAT Добавление функционала главного меню&#10;&#10;Обновление handler'ов." />
+    <option name="LAST_COMMIT_MESSAGE" value="FEAT Добавление функционала главного меню&#10;&#10;Обновление handler'ов." />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/zaboriki_bot$handlers.coverage" NAME="handlers Coverage Results" MODIFIED="1737002586753" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/bot" />
-    <SUITE FILE_PATH="coverage/zaboriki_bot$main.coverage" NAME="main Coverage Results" MODIFIED="1737010823034" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/bot" />
+    <SUITE FILE_PATH="coverage/zaboriki_bot$main.coverage" NAME="main Coverage Results" MODIFIED="1737014904660" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/bot" />
   </component>
 </project>

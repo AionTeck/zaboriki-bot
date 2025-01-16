@@ -1,15 +1,21 @@
 import logging
+import os
+from pathlib import Path
 
 
-def setup_logging(level):
+def setup_logging(level=logging.INFO):
+    base_dir = Path(__file__).parent.parent
+    log_dir = base_dir / 'logs'
+    log_dir.mkdir(exist_ok=True)
+
+    log_file = log_dir / 'bot.log'
+
     logging.basicConfig(
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         level=level,
         handlers=[
-            logging.FileHandler("bot/app.log", mode="a"),
+            logging.FileHandler(log_file, mode="a"),
             logging.StreamHandler(),
         ]
     )
-
-    logger = logging.getLogger(__name__)
-    return logger
+    return logging.getLogger(__name__)

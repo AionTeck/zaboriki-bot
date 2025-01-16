@@ -1,9 +1,26 @@
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
-from handlers import *
+import logging
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler
+)
+from handlers import (
+    start,
+    handle_contact,
+    show_main_menu,
+    handle_main_menu_selection,
+    error_handler
+)
 from config import config
+from logging_config import setup_logging
 
 
 def main():
+    logger = setup_logging(logging.INFO)
+    logger.info('Starting bot...')
+
     application = Application.builder().token(config.BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
