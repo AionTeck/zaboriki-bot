@@ -887,7 +887,6 @@ async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                     await update.effective_message.reply_text(
                         f"Ошибка сервера при сохранении. Попробуйте позже."
                     )
-
     except aiohttp.ClientError as e:
         logger.error(f"Network error final_calculation: {e}")
         await update.effective_message.reply_text("Сетевая ошибка при сохранении. Попробуйте позже.")
