@@ -288,6 +288,7 @@ async def handle_fence_accessory(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
 
     choice = query.data
+
     if choice == "done":
         chosen_list = context.user_data.get("fence_accessories_chosen", [])
         if chosen_list:
@@ -301,25 +302,75 @@ async def handle_fence_accessory(update: Update, context: ContextTypes.DEFAULT_T
             await query.message.reply_text(text)
         else:
             await query.message.reply_text("Вы не выбрали ни одного аксессуара.")
-
-        return CalcStates.NEED_GATES.value
+        return await ask_need_gates(update, context)
 
     acc_id = int(choice)
     context.user_data["current_accessory_id"] = acc_id
-    acc_map = context.user_data.get("fence_accessories_map", {})
-    acc_name = acc_map.get(acc_id, "неизвестный аксессуар")
 
-    await query.message.reply_text(
-        f"Сколько штук «{acc_name}» вам нужно? Введите число."
-    )
+    try:
+        url = f"{config.BASE_API_URL}accessories/{acc_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    acc_data = data.get("data", {})
+                    acc_name = acc_data.get("name", "неизвестный аксессуар")
+                    specs_list = acc_data.get("specs", [])
 
-    return CalcStates.FENCE_ACCESSORIES_QUANTITY.value
+                    context.user_data["current_accessory_name"] = acc_name
+
+                    specs_map = {}
+                    for spec in specs_list:
+                        sp_id = spec["spec_id"]
+                        sp_dim = spec["dimension"]
+                        specs_map[sp_id] = sp_dim
+
+                    context.user_data["current_specs_map"] = specs_map
+
+                    if not specs_list:
+                        await query.message.reply_text(
+                            f"Для «{acc_name}» нет характеристик. Сколько штук вам нужно?"
+                        )
+                        return CalcStates.FENCE_ACCESSORIES_QUANTITY.value
+                    elif len(specs_list) == 1:
+                        only_spec = specs_list[0]
+                        spec_id = only_spec["spec_id"]
+                        dimension = only_spec["dimension"]
+                        context.user_data["current_spec_id"] = spec_id
+                        context.user_data["current_spec_dimension"] = dimension
+
+                        await query.message.reply_text(
+                            f"Вы выбрали «{acc_name}» ({dimension}). Сколько штук вам нужно?"
+                        )
+                        return CalcStates.FENCE_ACCESSORIES_QUANTITY.value
+                    else:
+                        keyboard = []
+                        for spec in specs_list:
+                            btn_data = f"spec_{spec['spec_id']}"
+                            keyboard.append([InlineKeyboardButton(
+                                spec["dimension"],
+                                callback_data=btn_data
+                            )])
+
+                        await query.message.reply_text(
+                            f"Вы выбрали «{acc_name}».\nТеперь выберите характеристику:",
+                            reply_markup=InlineKeyboardMarkup(keyboard)
+                        )
+                        return CalcStates.FENCE_ACCESSORY_SPECS.value
+                else:
+                    await query.message.reply_text("Ошибка при получении данных аксессуара.")
+                    return CalcStates.FENCE_ACCESSORIES.value
+    except aiohttp.ClientError as e:
+        logger.error(f"Network error (GET /accessories/{acc_id}): {e}")
+        await query.message.reply_text("Проблема с сетью. Попробуйте позже.")
+        return CalcStates.FENCE_ACCESSORIES.value
 
 
 async def handle_fence_accessory_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+
     try:
-        qty = float(text.replace(",", "."))
+        qty = int(text)
         if qty <= 0:
             raise ValueError("Quantity must be > 0")
     except ValueError:
@@ -329,23 +380,517 @@ async def handle_fence_accessory_quantity(update: Update, context: ContextTypes.
         return CalcStates.FENCE_ACCESSORIES_QUANTITY.value
 
     acc_id = context.user_data.get("current_accessory_id")
+    spec_id = context.user_data.get("current_spec_id")
+    acc_name = context.user_data.get("current_accessory_name", "неизвестный аксессуар")
+    dimension = context.user_data.get("current_spec_dimension", "неизвестная характеристика")
+
     if not acc_id:
         await update.message.reply_text("Неизвестный аксессуар, попробуйте заново.")
         return await ask_fence_accessories(update, context)
 
     chosen_list = context.user_data.get("fence_accessories_chosen", [])
+
     chosen_list.append({
         "id": acc_id,
+        "spec_id": spec_id,
         "quantity": qty
     })
+
     context.user_data["fence_accessories_chosen"] = chosen_list
 
-    acc_map = context.user_data.get("fence_accessories_map", {})
-    acc_name = acc_map.get(acc_id, "неизвестный аксессуар")
     await update.message.reply_text(
-        f"Добавлено: {acc_name} x {qty}.\n"
+        f"Добавлено: {acc_name} ({dimension}) x {qty}.\n"
         "Если хотите выбрать ещё аксессуары — снова нажмите на нужный пункт.\n"
         "Или нажмите «Готово»."
     )
 
     return await ask_fence_accessories(update, context)
+
+
+async def ask_need_gates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    keyboard = [
+        [
+            InlineKeyboardButton("Да", callback_data="gates_yes"),
+            InlineKeyboardButton("Нет", callback_data="gates_no"),
+        ]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+
+    await update.effective_message.reply_text(
+        "Нужны ли вам ворота?",
+        reply_markup=markup
+    )
+    return CalcStates.NEED_GATES.value
+
+
+async def handle_need_gates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    choice = query.data
+    if choice == "gates_yes":
+        context.user_data["need_gates"] = True
+        return await ask_gate_types(update, context)
+    elif choice == "gates_no":
+        context.user_data["need_gates"] = False
+        await query.message.reply_text("Окей, идём без ворот.")
+        return CalcStates.MOUNTING_TYPE.value
+    else:
+        await query.message.reply_text("Неверный ответ. Выберите 'Да' или 'Нет'.")
+        return CalcStates.NEED_GATES.value
+
+
+async def ask_gate_types(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    url = f"{config.BASE_API_URL}gates/types"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            data = await response.json()
+            gate_types = data["data"]
+
+            context.user_data["gate_types_map"] = {
+                gt["id"]: gt["name"] for gt in gate_types
+            }
+
+            keyboard = [
+                [InlineKeyboardButton(gt["name"], callback_data=str(gt["id"]))]
+                for gt in gate_types
+            ]
+
+            markup = InlineKeyboardMarkup(keyboard)
+
+            await update.effective_message.reply_text(
+                "Выберите тип ворот:",
+                reply_markup=markup
+            )
+            return CalcStates.GATE_TYPE.value
+
+
+async def handle_gate_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    gate_type_id = int(query.data)
+    context.user_data["gate_type_id"] = gate_type_id
+
+    gate_types_map = context.user_data.get("gate_types_map", {})
+    gate_type_name = gate_types_map.get(gate_type_id, "неизвестные ворота")
+
+    await query.message.reply_text(
+        f"Вы выбрали ворота {gate_type_name}. Теперь загрузим популярные размеры..."
+    )
+    return await ask_gate_popular_specs_for_gates(update, context)
+
+
+async def ask_gate_popular_specs_for_gates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    gate_type_id = context.user_data["gate_type_id"]
+
+    url = f"{config.BASE_API_URL}gates/popular-specs?typeId={gate_type_id}"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            data = await response.json()
+            specs_data = data["data"]  # не пуст, по условию
+
+            keyboard = []
+            for spec in specs_data:
+                mm_height = spec["height"]
+                mm_width = spec["width"]
+                h_m = mm_height / 1000.0
+                w_m = mm_width / 1000.0
+                text_label = f"{h_m} м x {w_m} м"
+                callback_data = f"size_{h_m}x{w_m}"
+                keyboard.append([InlineKeyboardButton(text_label, callback_data=callback_data)])
+
+            markup = InlineKeyboardMarkup(keyboard)
+
+            await update.effective_message.reply_text(
+                "Выберите популярные размеры ворот (в метрах):",
+                reply_markup=markup
+            )
+            return CalcStates.GATE_POPULAR_SPECS.value
+
+
+async def handle_gate_size_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    choice = query.data
+    gate_type_id = context.user_data["gate_type_id"]
+
+    if not choice.startswith("size_"):
+        await query.message.reply_text("Неверный формат. Попробуйте снова.")
+        return CalcStates.GATE_POPULAR_SPECS.value
+
+    size_part = choice[len("size_"):]  # например "3.0x1.5"
+    h_str, w_str = size_part.split("x")
+    h_m = float(h_str)
+    w_m = float(w_str)
+
+    context.user_data["gate_height"] = h_m
+    context.user_data["gate_width"] = w_m
+
+    url = f"{config.BASE_API_URL}gates?typeId={gate_type_id}&height={h_m}&width={w_m}"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            data = await response.json()
+            gate_variants = data["data"]  # по условию не пусто
+
+            context.user_data["gate_variants_map"] = {
+                gv["id"]: gv["name"] for gv in gate_variants
+            }
+            keyboard = [
+                [InlineKeyboardButton(gv["name"], callback_data=str(gv["id"]))]
+                for gv in gate_variants
+            ]
+            keyboard.append([InlineKeyboardButton("Без ворот", callback_data="no_gate_variant")])
+
+            await query.message.edit_text(
+                "Выберите конкретную модель ворот:",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return CalcStates.GATE_VARIANTS.value
+
+
+async def handle_chosen_gate_variant(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    choice = query.data
+    if choice == "no_gate_variant":
+        context.user_data["gate_variant_id"] = None
+        await query.message.reply_text("Окей, без ворот. Идём дальше.")
+        return CalcStates.MOUNTING_TYPE.value
+
+    gate_variant_id = int(choice)
+    context.user_data["gate_variant_id"] = gate_variant_id
+
+    gate_map = context.user_data["gate_variants_map"]
+    gate_name = gate_map.get(gate_variant_id, "неизвестные ворота")
+
+    await query.message.reply_text(
+        f"Вы выбрали: {gate_name}.\nНужна ли автоматика к воротам?",
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Да", callback_data="automation_yes"),
+                InlineKeyboardButton("Нет", callback_data="automation_no")
+            ]
+        ])
+    )
+    return CalcStates.GATE_AUTOMATION.value
+
+
+async def handle_gate_automation_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    choice = query.data
+
+    if choice == "automation_yes":
+        context.user_data["gate_automation"] = True
+        await query.message.reply_text("Автоматика выбрана.")
+    elif choice == "automation_no":
+        context.user_data["gate_automation"] = False
+        await query.message.reply_text("Окей, без автоматики.")
+    else:
+        await query.message.reply_text("Неверный выбор. Попробуйте снова.")
+        return CalcStates.GATE_AUTOMATION.value
+
+    await query.message.reply_text("Хорошо! Теперь давайте выберем аксессуары для ворот...")
+    return await ask_gate_accessories(update, context)
+
+
+async def ask_gate_accessories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        url = f"{config.BASE_API_URL}accessories?accessoriableType=gate"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    accessories = data.get("data", [])
+
+                    context.user_data["gate_accessories_map"] = {
+                        acc["id"]: acc["name"] for acc in accessories
+                    }
+
+                    keyboard = []
+                    for acc in accessories:
+                        btn_text = acc["name"]
+                        btn_data = str(acc["id"])  # callback_data
+                        keyboard.append([InlineKeyboardButton(btn_text, callback_data=btn_data)])
+
+                    keyboard.append([InlineKeyboardButton("Готово", callback_data="done")])
+
+                    markup = InlineKeyboardMarkup(keyboard)
+
+                    if "gate_accessories_chosen" not in context.user_data:
+                        context.user_data["gate_accessories_chosen"] = []
+
+                    await update.effective_message.reply_text(
+                        "Выберите аксессуар к воротам (после выбора характеристики/количества можно повторять) "
+                        "или нажмите «Готово»:",
+                        reply_markup=markup
+                    )
+                    return CalcStates.GATE_ACCESSORIES.value
+                else:
+                    await update.effective_message.reply_text(
+                        "Ошибка сервера при получении списка аксессуаров для ворот. Пропустим аксессуары."
+                    )
+                    return CalcStates.MOUNTING_TYPE.value
+    except aiohttp.ClientError as e:
+        logger.error(f"Network error (GET /accessories gate): {e}")
+        await update.effective_message.reply_text("Проблема с сетью. Пропустим аксессуары.")
+        return CalcStates.MOUNTING_TYPE.value
+
+
+async def handle_gate_accessory(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    choice = query.data
+
+    if choice == "done":
+        chosen_list = context.user_data.get("gate_accessories_chosen", [])
+        if chosen_list:
+            text = "Вы выбрали аксессуары к воротам:\n"
+            map_ = context.user_data.get("gate_accessories_map", {})
+            for item in chosen_list:
+                acc_id = item["id"]
+                qty = item["quantity"]
+                name = map_.get(acc_id, f"ID={acc_id}")
+
+                text += f"• {name} x {qty}\n"
+            await query.message.reply_text(text)
+        else:
+            await query.message.reply_text("Вы не выбрали ни одного аксессуара для ворот.")
+
+        return CalcStates.MOUNTING_TYPE.value
+
+    acc_id = int(choice)
+    context.user_data["current_gate_accessory_id"] = acc_id
+
+    try:
+        url = f"{config.BASE_API_URL}accessories/{acc_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    acc_data = data.get("data", {})
+                    acc_name = acc_data.get("name", "неизвестный аксессуар")
+                    specs_list = acc_data.get("specs", [])
+
+                    context.user_data["current_gate_accessory_name"] = acc_name
+
+                    if not specs_list:
+                        await query.message.reply_text(
+                            f"Для «{acc_name}» нет характеристик. Сколько штук вам нужно?"
+                        )
+                        return CalcStates.GATE_ACCESSORIES_QUANTITY.value
+                    elif len(specs_list) == 1:
+                        only_spec = specs_list[0]
+                        spec_id = only_spec["spec_id"]
+                        dimension = only_spec["dimension"]
+
+                        context.user_data["current_spec_id"] = spec_id
+                        context.user_data["current_spec_dimension"] = dimension
+
+                        await query.message.reply_text(
+                            f"Вы выбрали «{acc_name}» ({dimension}). Сколько штук вам нужно?"
+                        )
+                        return CalcStates.GATE_ACCESSORIES_QUANTITY.value
+                    else:
+                        specs_map = {}
+                        for sp in specs_list:
+                            specs_map[sp["spec_id"]] = sp["dimension"]
+                        context.user_data["current_specs_map"] = specs_map
+
+                        keyboard = []
+                        for sp in specs_list:
+                            btn_data = f"spec_{sp['spec_id']}"
+                            keyboard.append([InlineKeyboardButton(sp["dimension"], callback_data=btn_data)])
+
+                        await query.message.reply_text(
+                            f"Вы выбрали «{acc_name}».\nТеперь выберите характеристику:",
+                            reply_markup=InlineKeyboardMarkup(keyboard)
+                        )
+                        return CalcStates.GATE_ACCESSORY_SPECS.value
+                else:
+                    await query.message.reply_text("Ошибка при получении данных аксессуара.")
+                    return CalcStates.GATE_ACCESSORIES.value
+    except aiohttp.ClientError as e:
+        logger.error(f"Network error get accessory: {e}")
+        await query.message.reply_text("Проблема с сетью. Попробуйте позже.")
+        return CalcStates.GATE_ACCESSORIES.value
+
+
+async def handle_accessory_spec_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    choice = query.data  # ожидаем "spec_XXX"
+
+    if not choice.startswith("spec_"):
+        await query.message.reply_text("Неверный выбор спецификации.")
+        return CalcStates.GATE_ACCESSORY_SPECS.value
+
+    spec_id_str = choice[len("spec_"):]
+    spec_id = int(spec_id_str)
+
+    specs_map = context.user_data.get("current_specs_map", {})
+    dimension = specs_map.get(spec_id, "неизвестная характеристика")
+
+    context.user_data["current_spec_id"] = spec_id
+    context.user_data["current_spec_dimension"] = dimension
+
+    acc_name = context.user_data.get("current_gate_accessory_name", "неизвестный аксессуар")
+
+    await query.message.reply_text(
+        f"Вы выбрали «{acc_name}» ({dimension}). Сколько штук вам нужно?"
+    )
+
+    return CalcStates.GATE_ACCESSORIES_QUANTITY.value
+
+
+async def handle_gate_accessory_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
+    try:
+        qty = int(text)
+        if qty <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text("Введите целое положительное число.")
+        return CalcStates.GATE_ACCESSORIES_QUANTITY.value
+
+    acc_id = context.user_data.get("current_gate_accessory_id")
+    acc_name = context.user_data.get("current_gate_accessory_name", "неизвестный акс")
+    spec_id = context.user_data.get("current_spec_id")
+    dimension = context.user_data.get("current_spec_dimension")
+
+    chosen_list = context.user_data.get("gate_accessories_chosen", [])
+    chosen_list.append({
+        "id": acc_id,
+        "spec_id": spec_id,
+        "quantity": qty
+    })
+    context.user_data["gate_accessories_chosen"] = chosen_list
+
+    msg = f"Добавлено: {acc_name}"
+    if dimension:
+        msg += f" ({dimension})"
+    msg += f" x {qty}."
+
+    await update.message.reply_text(
+        msg + "\nЕсли хотите выбрать ещё аксессуары, нажмите на нужный пункт.\n"
+              "Или нажмите «Готово»."
+    )
+
+    return await ask_gate_accessories(update, context)
+
+
+async def ask_mounting_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        url = f"{config.BASE_API_URL}mountings"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    mountings = data.get("data", [])
+
+                    context.user_data["mountings_map"] = {
+                        m["id"]: m["name"] for m in mountings
+                    }
+
+                    keyboard = [
+                        [InlineKeyboardButton(m["name"], callback_data=str(m["id"]))]
+                        for m in mountings
+                    ]
+                    markup = InlineKeyboardMarkup(keyboard)
+
+                    await update.effective_message.reply_text(
+                        "Выберите тип монтажа:",
+                        reply_markup=markup
+                    )
+                    return CalcStates.MOUNTING_TYPE.value
+                else:
+                    await update.effective_message.reply_text(
+                        "Ошибка сервера при получении типов монтажа."
+                    )
+                    return CalcStates.END.value
+    except aiohttp.ClientError as e:
+        logger.error(f"Network error (GET /mountings): {e}")
+        await update.effective_message.reply_text("Проблема с сетью. Завершаем.")
+        return CalcStates.END.value
+
+
+async def handle_mounting_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    choice = query.data
+
+    mounting_id = int(choice)
+    context.user_data["mounting_id"] = mounting_id
+
+    mountings_map = context.user_data.get("mountings_map", {})
+    mounting_name = mountings_map.get(mounting_id, "неизвестный монтаж")
+
+    await query.message.reply_text(f"Вы выбрали монтаж: {mounting_name}.\nТеперь формируем итог...")
+
+    # Переходим к финальному шагу
+    return await final_calculation(update, context)
+
+
+async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Собираем все данные из context.user_data, отправляем на бэкенд (POST /calculations).
+    Если ок — пишем «Спасибо, расчёт готов!» и завершаем диалог.
+    """
+    # Схематически:
+    fence_type_id = context.user_data.get("fence_type_id")
+    fence_variant_id = context.user_data.get("fence_variant_id")
+    fence_length = context.user_data.get("fence_length")
+    fence_accessories = context.user_data.get("fence_accessories_chosen", [])
+
+    need_gates = context.user_data.get("need_gates")
+    gate_type_id = context.user_data.get("gate_type_id")
+    gate_variant_id = context.user_data.get("gate_variant_id")
+    gate_automation = context.user_data.get("gate_automation", False)
+    gate_accessories = context.user_data.get("gate_accessories_chosen", [])
+
+    mounting_id = context.user_data.get("mounting_id")
+
+    # Формируем объект
+    post_data = {
+        "fence": {
+            "typeId": fence_type_id,
+            "variantId": fence_variant_id,
+            "length": fence_length,
+            "accessories": fence_accessories,
+        },
+        "gates": {
+            "needGates": need_gates,
+            "typeId": gate_type_id,
+            "variantId": gate_variant_id,
+            "automation": gate_automation,
+            "accessories": gate_accessories,
+        },
+        "mountingId": mounting_id,
+        # ... может быть ещё какая-то инфа о пользователе ...
+    }
+
+    try:
+        url = f"{config.BASE_API_URL}calculations"  # или /orders, как у вас
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=post_data) as response:
+                if response.status == 200:
+                    result_data = await response.json()
+                    await update.effective_message.reply_text(
+                        "Спасибо! Ваш расчёт сформирован. Менеджер свяжется с вами."
+                    )
+                else:
+                    await update.effective_message.reply_text(
+                        f"Ошибка сервера при сохранении. Попробуйте позже."
+                    )
+
+    except aiohttp.ClientError as e:
+        logger.error(f"Network error final_calculation: {e}")
+        await update.effective_message.reply_text("Сетевая ошибка при сохранении. Попробуйте позже.")
+
+    context.user_data.clear()
+    return ConversationHandler.END

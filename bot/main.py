@@ -16,9 +16,16 @@ from handlers.calculation_conversation import (
     choose_fence_variant,
     save_fence_variant,
     ask_fence_length,
-    ask_fence_accessories,
     handle_fence_accessory,
     handle_fence_accessory_quantity,
+    handle_accessory_spec_choice,
+    handle_need_gates,
+    handle_gate_type,
+    handle_chosen_gate_variant,
+    handle_gate_size_choice,
+    handle_gate_automation_choice,
+    handle_gate_accessory,
+    handle_gate_accessory_quantity
 )
 from handlers.calculation_states import CalcStates
 from handlers import (
@@ -58,11 +65,35 @@ def main():
             CalcStates.FENCE_ACCESSORIES.value: [
                 CallbackQueryHandler(handle_fence_accessory),
             ],
+            CalcStates.FENCE_ACCESSORY_SPECS.value: [
+                CallbackQueryHandler(handle_accessory_spec_choice),
+            ],
             CalcStates.FENCE_ACCESSORIES_QUANTITY.value: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_fence_accessory_quantity),
             ],
             CalcStates.NEED_GATES.value: [
-                # ...
+                CallbackQueryHandler(handle_need_gates),
+            ],
+            CalcStates.GATE_TYPE.value: [
+                CallbackQueryHandler(handle_gate_type),
+            ],
+            CalcStates.GATE_POPULAR_SPECS.value: [
+                CallbackQueryHandler(handle_gate_size_choice),
+            ],
+            CalcStates.GATE_VARIANTS.value: [
+                CallbackQueryHandler(handle_chosen_gate_variant),
+            ],
+            CalcStates.GATE_AUTOMATION.value: [
+                CallbackQueryHandler(handle_gate_automation_choice),
+            ],
+            CalcStates.GATE_ACCESSORIES.value: [
+                CallbackQueryHandler(handle_gate_accessory),
+            ],
+            CalcStates.GATE_ACCESSORY_SPECS.value: [
+                CallbackQueryHandler(handle_accessory_spec_choice),
+            ],
+            CalcStates.GATE_ACCESSORIES_QUANTITY.value: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gate_accessory_quantity),
             ],
         },
         fallbacks=[

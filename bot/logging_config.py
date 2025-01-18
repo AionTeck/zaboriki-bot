@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 
-def setup_logging(level=logging.INFO):
+def setup_logging(level=logging.DEBUG):
     base_dir = Path(__file__).parent.parent
     log_dir = base_dir / 'logs'
     log_dir.mkdir(exist_ok=True)
