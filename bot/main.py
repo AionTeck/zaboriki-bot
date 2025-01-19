@@ -18,14 +18,16 @@ from handlers.calculation_conversation import (
     ask_fence_length,
     handle_fence_accessory,
     handle_fence_accessory_quantity,
-    handle_accessory_spec_choice,
+    handle_gate_accessory_spec_choice,
+    handle_fence_accessory_spec_choice,
     handle_need_gates,
     handle_gate_type,
     handle_chosen_gate_variant,
     handle_gate_size_choice,
     handle_gate_automation_choice,
     handle_gate_accessory,
-    handle_gate_accessory_quantity
+    handle_gate_accessory_quantity,
+    handle_mounting_type
 )
 from handlers.calculation_states import CalcStates
 from handlers import (
@@ -66,7 +68,7 @@ def main():
                 CallbackQueryHandler(handle_fence_accessory),
             ],
             CalcStates.FENCE_ACCESSORY_SPECS.value: [
-                CallbackQueryHandler(handle_accessory_spec_choice),
+                CallbackQueryHandler(handle_fence_accessory_spec_choice),
             ],
             CalcStates.FENCE_ACCESSORIES_QUANTITY.value: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_fence_accessory_quantity),
@@ -90,11 +92,14 @@ def main():
                 CallbackQueryHandler(handle_gate_accessory),
             ],
             CalcStates.GATE_ACCESSORY_SPECS.value: [
-                CallbackQueryHandler(handle_accessory_spec_choice),
+                CallbackQueryHandler(handle_gate_accessory_spec_choice),
             ],
             CalcStates.GATE_ACCESSORIES_QUANTITY.value: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gate_accessory_quantity),
             ],
+            CalcStates.MOUNTING_TYPE.value: [
+                CallbackQueryHandler(handle_mounting_type),
+            ]
         },
         fallbacks=[
             CommandHandler("cancel", cancel_dialog),
