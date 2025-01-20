@@ -883,6 +883,8 @@ async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     report_id = str(update.effective_user.id) + '_' + str(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
 
+    user_id = update.effective_user.id
+
     post_data = {
         "fence": {
             "typeId": fence_type_id,
@@ -900,7 +902,8 @@ async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "accessories": gate_accessories,
         },
         "mountingId": mounting_id,
-        "report_id": report_id
+        "report_id": report_id,
+        "user_id": user_id,
     }
 
     logger.info(post_data)
