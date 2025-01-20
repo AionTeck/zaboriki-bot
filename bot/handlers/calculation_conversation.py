@@ -44,8 +44,6 @@ async def start_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                         for ft in fence_types
                     ]
 
-                    keyboard.append([InlineKeyboardButton("Главное меню", callback_data="main_menu")])
-
                     markup = InlineKeyboardMarkup(keyboard)
                     await update.effective_message.reply_text(
                         "Выберите тип забора:",
@@ -67,11 +65,6 @@ async def choose_fence_type(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     choice = query.data
 
-    if choice == "main_menu":
-        await query.message.reply_text("Возвращаемся в главное меню.")
-        context.user_data.clear()
-        return ConversationHandler.END
-
     fence_type_id = int(choice)
     context.user_data["fence_type_id"] = fence_type_id
 
@@ -85,6 +78,7 @@ async def choose_fence_type(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def ask_fence_popular_specs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     fence_type_id = context.user_data.get("fence_type_id")
+
     if not fence_type_id:
         await update.effective_message.reply_text("Ошибка: нет типа забора.")
         return ConversationHandler.END
@@ -105,13 +99,12 @@ async def ask_fence_popular_specs(update: Update, context: ContextTypes.DEFAULT_
 
                     keyboard = []
                     for spec in specs:
-                        mm_height = spec["height"]  # например, 2000
+                        mm_height = spec["height"]
+                        spec_id = spec["spec_id"]
                         meters = mm_height / 1000.0
                         text_label = f"{meters} м"
-                        callback_data = str(meters)
+                        callback_data = str(spec_id) + "_" + str(meters)
                         keyboard.append([InlineKeyboardButton(text_label, callback_data=callback_data)])
-
-                    keyboard.append([InlineKeyboardButton("Главное меню", callback_data="main_menu")])
 
                     markup = InlineKeyboardMarkup(keyboard)
                     await update.effective_message.reply_text(
@@ -133,18 +126,17 @@ async def choose_fence_variant(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     choice = query.data
 
-    if choice == "main_menu":
-        await query.message.reply_text("Возвращаемся в главное меню.")
-        context.user_data.clear()
-        return ConversationHandler.END
-
     fence_type_id = context.user_data.get("fence_type_id")
     if not fence_type_id:
         await query.message.reply_text("Ошибка: отсутствует выбранный тип забора.")
         return ConversationHandler.END
 
-    height_meters = float(choice)
+    spec_id, height_meters = choice.split("_")
+
+    height_meters = float(height_meters)
+
     context.user_data["fence_height"] = height_meters
+    context.user_data["fence_spec_id"] = int(spec_id)
 
     try:
         url = f"{config.BASE_API_URL}fences?typeId={fence_type_id}&height={height_meters}"
@@ -523,10 +515,11 @@ async def ask_gate_popular_specs_for_gates(update: Update, context: ContextTypes
             for spec in specs_data:
                 mm_height = spec["height"]
                 mm_width = spec["width"]
+                spec_id = spec["spec_id"]
                 h_m = mm_height / 1000.0
                 w_m = mm_width / 1000.0
                 text_label = f"{h_m} м x {w_m} м"
-                callback_data = f"size_{h_m}x{w_m}"
+                callback_data = f"specId_{spec_id}_size_{h_m}x{w_m}"
                 keyboard.append([InlineKeyboardButton(text_label, callback_data=callback_data)])
 
             markup = InlineKeyboardMarkup(keyboard)
@@ -545,17 +538,22 @@ async def handle_gate_size_choice(update: Update, context: ContextTypes.DEFAULT_
     choice = query.data
     gate_type_id = context.user_data["gate_type_id"]
 
-    if not choice.startswith("size_"):
+    if not choice.startswith("specId_"):
         await query.message.reply_text("Неверный формат. Попробуйте снова.")
         return CalcStates.GATE_POPULAR_SPECS.value
 
-    size_part = choice[len("size_"):]  # например "3.0x1.5"
+    spec_id_part, size_part = choice.split("_size_")
+
+    _, spec_id = spec_id_part.split("specId_")
+
     h_str, w_str = size_part.split("x")
     h_m = float(h_str)
     w_m = float(w_str)
 
     context.user_data["gate_height"] = h_m
     context.user_data["gate_width"] = w_m
+
+    context.user_data["gate_spec_id"] = spec_id
 
     url = f"{config.BASE_API_URL}gates?typeId={gate_type_id}&height={h_m}&width={w_m}"
 
@@ -869,12 +867,14 @@ async def handle_mounting_type(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     fence_type_id = context.user_data.get("fence_type_id")
+    fence_spec_id = context.user_data.get("fence_spec_id")
     fence_variant_id = context.user_data.get("fence_variant_id")
     fence_length = context.user_data.get("fence_length")
     fence_accessories = context.user_data.get("fence_accessories_chosen", [])
 
     need_gates = context.user_data.get("need_gates")
     gate_type_id = context.user_data.get("gate_type_id")
+    gate_spec_id = context.user_data.get("gate_spec_id")
     gate_variant_id = context.user_data.get("gate_variant_id")
     gate_automation = context.user_data.get("gate_automation", False)
     gate_accessories = context.user_data.get("gate_accessories_chosen", [])
@@ -886,12 +886,14 @@ async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     post_data = {
         "fence": {
             "typeId": fence_type_id,
+            "specId": fence_spec_id,
             "variantId": fence_variant_id,
             "length": fence_length,
             "accessories": fence_accessories,
         },
         "gates": {
             "needGates": need_gates,
+            "specId": gate_spec_id,
             "typeId": gate_type_id,
             "variantId": gate_variant_id,
             "automation": gate_automation,
@@ -900,6 +902,8 @@ async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         "mountingId": mounting_id,
         "report_id": report_id
     }
+
+    logger.info(post_data)
 
     try:
         url = f"{config.BASE_API_URL}calculations"
@@ -924,15 +928,15 @@ async def final_calculation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def check_report_status(report_id: str, update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        url = f"{config.BASE_API_URL}reports/{report_id}/status"
         for _ in range(30):
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(f"{config.BASE_API_URL}reports/{report_id}/status") as response:
                     if response.status == 200:
                         status_data = await response.json()
-                        if status_data["status"] == "ready":
-                            pdf_url = status_data["pdfUrl"]
-                            async with session.get(pdf_url) as pdf_response:
+                        if status_data["status"] == "success":
+                            async with session.get(
+                                    f"{config.BASE_API_URL}calculations/{report_id}/download-report"
+                            ) as pdf_response:
                                 if pdf_response.status == 200:
                                     pdf_file = await pdf_response.read()
                                     await update.effective_message.reply_document(
@@ -943,7 +947,6 @@ async def check_report_status(report_id: str, update: Update, context: ContextTy
                                     return
                     elif response.status != 202:
                         logger.warning(f"Unexpected status code {response.status}")
-                        break
             await asyncio.sleep(10)
     except aiohttp.ClientError as e:
         logger.error(f"Network error in check_report_status: {e}")
